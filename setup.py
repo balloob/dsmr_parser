@@ -10,16 +10,15 @@ setup(
     version='1.6.0',
     packages=find_packages(exclude=('test', 'test.*')),
     install_requires=[
-        'pyserial>=3,<4',
-        'pyserial-asyncio-fast>=0.11',
+        'serialx>=1.8,<2',
         'Tailer==0.4.1',
         'dlms_cosem==21.3.2'
     ],
     entry_points={
         'console_scripts': ['dsmr_console=dsmr_parser.__main__:console']
     },
+    python_requires='>=3.10',
     classifiers=[
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
