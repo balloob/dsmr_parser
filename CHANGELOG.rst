@@ -1,6 +1,11 @@
 Change Log
 ----------
 
+**1.7.0** (2026-05-17)
+
+- Drop support for python 3.9
+- Migrate from pyserial/pyserial-asyncio-fast to serialx (`PR #180 <https://github.com/ndokter/dsmr_parser/pull/180>`_ by `balloob <https://github.com/balloob>`_)
+
 **1.6.0** (2026-03-04)
 
 - Drop support for python 3.8
