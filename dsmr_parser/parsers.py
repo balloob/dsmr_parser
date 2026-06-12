@@ -5,7 +5,9 @@ from binascii import unhexlify
 from ctypes import c_ushort
 from decimal import Decimal
 
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from dlms_cosem.connection import XDlmsApduFactory
+from dlms_cosem.exceptions import DecryptionError
 from dlms_cosem.protocol.xdlms import GeneralGlobalCipher
 
 from dsmr_parser.objects import MBusObject, MBusObjectPeak, CosemObject, ProfileGenericObject, Telegram
@@ -13,6 +15,30 @@ from dsmr_parser.exceptions import ParseError, InvalidChecksumError
 from dsmr_parser.value_types import timestamp
 
 logger = logging.getLogger(__name__)
+
+
+def _decrypt_without_verification(apdu, encryption_key):
+    """Decrypt a general-global-cipher APDU without verifying the GCM tag.
+
+    GCM decryption is AES-CTR with the counter starting at inc32(J0); for the
+    96-bit DLMS IV that is system_title || invocation_counter || 0x00000002.
+    This recovers the plaintext using only the encryption key, ignoring the
+    authentication tag. It is used when the caller passes ``authentication_key=
+    None`` -- e.g. for meters whose authentication key is unknown or wrong, like
+    the Luxembourg Smarty (see ESPHome's dsmr component, which decrypts the same
+    way). Integrity is then provided by the telegram's own CRC.
+
+    :param apdu: a decoded GeneralGlobalCipher APDU
+    :param bytes encryption_key: the 16 byte encryption key
+    :rtype: bytes
+    """
+    iv = apdu.system_title + apdu.invocation_counter.to_bytes(4, "big")
+    initial_counter = iv + (2).to_bytes(4, "big")
+    ciphertext = apdu.ciphered_text[:-12]  # strip the 12 byte GCM tag
+    decryptor = Cipher(
+        algorithms.AES(encryption_key), modes.CTR(initial_counter)
+    ).decryptor()
+    return decryptor.update(ciphertext) + decryptor.finalize()
 
 
 class TelegramParser(object):
@@ -50,13 +76,6 @@ class TelegramParser(object):
         if "general_global_cipher" in self.telegram_specification:
             if self.telegram_specification["general_global_cipher"]:
                 enc_key = unhexlify(encryption_key)
-                # Use the spec's embedded authentication key if the caller did not
-                # supply one. Some meters (e.g. Luxembourg Smarty/MSN) use a fixed
-                # public authentication key defined in the official specification.
-                effective_auth_key = authentication_key or self.telegram_specification.get(
-                    "authentication_key", ""
-                )
-                auth_key = unhexlify(effective_auth_key)
                 telegram_data = unhexlify(telegram_data)
                 apdu = XDlmsApduFactory.apdu_from_bytes(apdu_bytes=telegram_data)
                 if apdu.security_control.security_suite != 0:
@@ -69,7 +88,32 @@ class TelegramParser(object):
                     logger.warning("Untested compression")
                 if apdu.security_control.broadcast_key:
                     logger.warning("Untested broadcast key")
-                telegram_data = apdu.to_plain_apdu(enc_key, auth_key).decode("ascii")
+                if authentication_key is None:
+                    # Opt-in: decrypt without verifying the GCM authentication
+                    # tag, using only the encryption key, and rely on the
+                    # telegram CRC for integrity. Needed for meters whose
+                    # authentication key is unknown/wrong (e.g. the Luxembourg
+                    # Smarty -- ESPHome decrypts the same way). A wrong
+                    # encryption key yields non-ASCII garbage / no leading '/'.
+                    try:
+                        telegram_data = _decrypt_without_verification(
+                            apdu, enc_key
+                        ).decode("ascii")
+                    except (UnicodeDecodeError, ValueError):
+                        telegram_data = ""
+                    if not telegram_data.startswith("/"):
+                        raise DecryptionError(
+                            "Unable to decrypt telegram; wrong encryption key?"
+                        )
+                else:
+                    # Use the spec's embedded authentication key if the caller did not
+                    # supply one. Some meters (e.g. Luxembourg Smarty/MSN) use a fixed
+                    # public authentication key defined in the official specification.
+                    effective_auth_key = authentication_key or self.telegram_specification.get(
+                        "authentication_key", ""
+                    )
+                    auth_key = unhexlify(effective_auth_key)
+                    telegram_data = apdu.to_plain_apdu(enc_key, auth_key).decode("ascii")
             else:
                 try:
                     if unhexlify(telegram_data[0:2])[0] == GeneralGlobalCipher.TAG:
