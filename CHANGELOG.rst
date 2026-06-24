@@ -1,5 +1,8 @@
 Change Log
 ----------
+**1.10.0** (2026-06-24)
+
+- Binary framing for encrypted telegrams over the serial/network readers (`PR #184 <https://github.com/ndokter/dsmr_parser/pull/184>`_ by `balloob <https://github.com/balloob>`_)
 
 **1.9.0** (2026-06-19)
 
