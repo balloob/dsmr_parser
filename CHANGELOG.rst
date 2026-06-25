@@ -1,7 +1,14 @@
 Change Log
 ----------
+**1.10.0** (2026-06-24)
 
-**1.8.0** (2026-06-08)
+- Binary framing for encrypted telegrams over the serial/network readers (`PR #184 <https://github.com/ndokter/dsmr_parser/pull/184>`_ by `balloob <https://github.com/balloob>`_)
+
+**1.9.0** (2026-06-19)
+
+- Only try to parse incoming data when checksum has arrived (`PR #187 <https://github.com/ndokter/dsmr_parser/pull/187>`_ by `puddly <https://github.com/puddly>`_)
+
+  **1.8.0** (2026-06-08)
 
 - Add encrypted telegram support for MSn (Luxembourg Smarty) and SAGEMCOM_T210_D_R (`PR #178 <https://github.com/ndokter/dsmr_parser/pull/178>`_ by `Arvoreen75 <https://github.com/Arvoreen75>`_) and  `skrutzler <https://github.com/skrutzler>`_)
 
